@@ -20,17 +20,24 @@ const app = express();
 // Add pagination plugin to mongoose
 mongoose.plugin(paginate);
 
+// Debug middleware - logs all requests
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.originalUrl}`);
+  next();
+});
+
 // Middleware
 app.use(cors({
-  origin: process.env.FRONTEND_URL,
+  origin: process.env.FRONTEND_URL || '*',
   credentials: true
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
 
-// Root endpoint - ADDED THIS
+// Root endpoint
 app.get('/', (req, res) => {
+  console.log('Root route accessed');
   res.json({
     success: true,
     message: 'Welcome to the Donation Platform API',
@@ -49,6 +56,7 @@ app.get('/', (req, res) => {
 
 // Health check endpoint
 app.get('/health', (req, res) => {
+  console.log('Health check accessed');
   res.status(200).json({
     success: true,
     message: 'Server is running',
@@ -64,6 +72,7 @@ app.use('/api/fundings', fundingRoutes);
 
 // Test endpoint
 app.get('/api/test', (req, res) => {
+  console.log('Test endpoint accessed');
   res.json({
     success: true,
     message: 'API is working!',
@@ -71,17 +80,41 @@ app.get('/api/test', (req, res) => {
   });
 });
 
-// 404 handler
-app.use((req, res, next) => {
+// FIX: Correct catch-all route for undefined API endpoints
+// Option 1: Use a specific pattern
+app.use('/api/:undefinedPath', (req, res) => {
+  console.log('API catch-all triggered:', req.originalUrl);
   res.status(404).json({
     success: false,
-    message: `Route not found: ${req.originalUrl}`
+    message: `API endpoint not found: ${req.originalUrl}`
   });
 });
 
-// Error handling middleware
+// OR Option 2: Remove the catch-all entirely (simpler)
+// Just let the global 404 handler catch everything
+
+// 404 handler - THIS MUST BE LAST (after all other routes)
+app.use((req, res) => {
+  console.log('Global 404 triggered:', req.originalUrl);
+  res.status(404).json({
+    success: false,
+    message: `Route not found: ${req.originalUrl}`,
+    availableEndpoints: [
+      '/',
+      '/health',
+      '/api/auth',
+      '/api/users', 
+      '/api/donation-requests',
+      '/api/fundings',
+      '/api/test'
+    ]
+  });
+});
+
+// Error handling middleware - MUST BE AFTER 404
 app.use((err, req, res, next) => {
   console.error('Error:', err.message);
+  console.error('Stack:', err.stack);
   
   const statusCode = err.statusCode || 500;
   const message = err.message || 'Internal Server Error';
@@ -99,10 +132,10 @@ const connectDB = async () => {
     console.log('Connecting to MongoDB...');
     
     // Remove the deprecated options for Mongoose 7+
-    await mongoose.connect(process.env.MONGODB_URI);
+    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/donation-platform');
     
     console.log('✅ MongoDB connected successfully');
-    console.log(`📊 Database: ${mongoose.connection.db.databaseName}`);
+    console.log(`📊 Database: ${mongoose.connection.db?.databaseName}`);
     
     // Set up connection event listeners
     mongoose.connection.on('error', (err) => {
@@ -135,13 +168,16 @@ const startServer = async () => {
   try {
     await connectDB();
     
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Server is running on port ${PORT}`);
-      console.log(`🌍 Frontend URL: ${process.env.FRONTEND_URL}`);
+      console.log(`🌍 Access URLs:`);
+      console.log(`   Local: http://localhost:${PORT}`);
+      console.log(`   Network: http://0.0.0.0:${PORT}`);
       console.log(`🔗 Health check: http://localhost:${PORT}/health`);
       console.log(`🔧 Test endpoint: http://localhost:${PORT}/api/test`);
-      console.log(`⚡ Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`🏠 Root endpoint: http://localhost:${PORT}/`);
+      console.log(`⚡ Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`📝 Frontend URL: ${process.env.FRONTEND_URL || 'Not set'}`);
     });
   } catch (error) {
     console.error('Failed to start server:', error);
