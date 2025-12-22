@@ -56,23 +56,6 @@ const userSchema = new mongoose.Schema({
   }
 });
 
-// FIXED: Remove the problematic middleware and use simple defaults
-// Remove this:
-// userSchema.pre('save', function(next) {
-//   if (this.isNew) {
-//     this.createdAt = new Date();
-//   }
-//   this.updatedAt = new Date();
-//   next();
-// });
-
-// Remove this too:
-// userSchema.pre('findOneAndUpdate', function(next) {
-//   this.set({ updatedAt: new Date() });
-//   next();
-// });
-
-// Add pagination plugin
 userSchema.plugin(paginate);
 
 module.exports = mongoose.model('User', userSchema);

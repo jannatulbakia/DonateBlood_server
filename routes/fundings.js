@@ -9,7 +9,6 @@ const {
 } = require('../controllers/fundingController');
 const { auth, authorize } = require('../middleware/auth');
 
-// Protected routes
 router.post('/create-payment-intent', auth, createPaymentIntent);
 router.post('/confirm-payment', auth, confirmPayment);
 router.get('/', auth, getAllFundings);

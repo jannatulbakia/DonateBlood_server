@@ -1,21 +1,16 @@
-// controllers/fundingController.js
 
 const Funding = require('../models/Funding');
 const User = require('../models/User');
-
-// Helper function to safely get Stripe instance
 const getStripe = () => {
   const key = process.env.STRIPE_SECRET_KEY;
   
   if (!key) {
     throw new Error('STRIPE_SECRET_KEY is not configured. Please set it in environment variables.');
   }
-  
-  // Lazy require to avoid loading stripe if key is missing
+
   return require('stripe')(key);
 };
 
-// Create Payment Intent
 const createPaymentIntent = async (req, res) => {
   try {
     const { amount } = req.body;
@@ -27,10 +22,10 @@ const createPaymentIntent = async (req, res) => {
       });
     }
 
-    const stripe = getStripe(); // Initialize only when needed
+    const stripe = getStripe();
 
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(amount * 100), // Stripe uses cents
+      amount: Math.round(amount * 100),
       currency: 'usd',
       metadata: {
         userId: req.user._id.toString(),
@@ -53,7 +48,6 @@ const createPaymentIntent = async (req, res) => {
   }
 };
 
-// Confirm Payment and Save Funding
 const confirmPayment = async (req, res) => {
   try {
     const { paymentIntentId, amount } = req.body;
@@ -64,7 +58,6 @@ const confirmPayment = async (req, res) => {
         message: 'Payment intent ID and amount are required'
       });
     }
-
     const stripe = getStripe();
 
     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
@@ -75,8 +68,6 @@ const confirmPayment = async (req, res) => {
         message: 'Payment has not been completed yet'
       });
     }
-
-    // Prevent duplicate processing
     const existingFunding = await Funding.findOne({ transactionId: paymentIntent.id });
     if (existingFunding) {
       return res.status(400).json({
@@ -84,8 +75,6 @@ const confirmPayment = async (req, res) => {
         message: 'This payment has already been processed'
       });
     }
-
-    // Save funding record
     const funding = new Funding({
       user: req.user._id,
       amount: amount,
@@ -95,8 +84,6 @@ const confirmPayment = async (req, res) => {
     });
 
     await funding.save();
-
-    // Populate user details
     const populatedFunding = await Funding.findById(funding._id)
       .populate('user', 'name email avatar');
 
@@ -114,8 +101,6 @@ const confirmPayment = async (req, res) => {
     });
   }
 };
-
-// Get All Fundings (Admin/Volunteer view)
 const getAllFundings = async (req, res) => {
   try {
     const { page = 1, limit = 10, userId } = req.query;
@@ -152,7 +137,6 @@ const getAllFundings = async (req, res) => {
   }
 };
 
-// Get Funding Statistics
 const getFundingStats = async (req, res) => {
   try {
     const today = new Date();
@@ -199,7 +183,6 @@ const getFundingStats = async (req, res) => {
   }
 };
 
-// Get User's Own Fundings
 const getUserFundings = async (req, res) => {
   try {
     const { page = 1, limit = 10 } = req.query;

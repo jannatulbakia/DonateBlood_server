@@ -123,10 +123,10 @@ const seedDatabase = async () => {
       donationRequests.push(request);
     }
 
-    console.log('✅ Database seeded successfully!');
-    console.log(`👥 Created ${1 + 1 + donors.length} users`);
-    console.log(`🩸 Created ${donationRequests.length} donation requests`);
-    console.log('\n📋 Test Credentials:');
+    console.log('Database seeded successfully!');
+    console.log(`Created ${1 + 1 + donors.length} users`);
+    console.log(`Created ${donationRequests.length} donation requests`);
+    console.log('\n Test Credentials:');
     console.log('Admin: admin@example.com / admin123');
     console.log('Volunteer: volunteer@example.com / volunteer123');
     console.log('Donor 1: donor1@example.com / donor1123');
@@ -134,7 +134,7 @@ const seedDatabase = async () => {
     
     process.exit(0);
   } catch (error) {
-    console.error('❌ Error seeding database:', error.message);
+    console.error('Error seeding database:', error.message);
     console.error(error.stack);
     process.exit(1);
   }

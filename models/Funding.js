@@ -32,7 +32,6 @@ const fundingSchema = new mongoose.Schema({
   }
 });
 
-// Add pagination plugin
 fundingSchema.plugin(paginate);
 
 module.exports = mongoose.model('Funding', fundingSchema);

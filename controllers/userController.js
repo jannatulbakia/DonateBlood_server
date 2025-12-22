@@ -3,7 +3,6 @@ const DonationRequest = require('../models/DonationRequest');
 const Funding = require('../models/Funding');
 const bcrypt = require('bcryptjs');
 
-// Get User Profile
 const getProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user._id).select('-password');
@@ -22,18 +21,15 @@ const getProfile = async (req, res) => {
   }
 };
 
-// Update User Profile
 const updateProfile = async (req, res) => {
   try {
     const { name, bloodGroup, district, upazila } = req.body;
     const updateData = { name, bloodGroup, district, upazila };
-
-    // Handle avatar if provided
+    
     if (req.body.avatar) {
       updateData.avatar = req.body.avatar;
     }
-
-    // Update user
+    
     const user = await User.findByIdAndUpdate(
       req.user._id,
       updateData,
@@ -55,7 +51,6 @@ const updateProfile = async (req, res) => {
   }
 };
 
-// Get All Users (Admin only)
 const getAllUsers = async (req, res) => {
   try {
     const { page = 1, limit = 10, status, role } = req.query;
@@ -87,7 +82,6 @@ const getAllUsers = async (req, res) => {
   }
 };
 
-// Update User Status (Admin only)
 const updateUserStatus = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -128,7 +122,6 @@ const updateUserStatus = async (req, res) => {
   }
 };
 
-// Update User Role (Admin only)
 const updateUserRole = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -169,36 +162,26 @@ const updateUserRole = async (req, res) => {
   }
 };
 
-// Search Donors - FIXED VERSION with proper matching
 const searchDonors = async (req, res) => {
   try {
     const { bloodGroup, district, upazila, page = 1, limit = 10 } = req.query;
     
-    console.log('🔍 Search request received:', { bloodGroup, district, upazila });
-
-    // Build the query with AND conditions (all filters must match)
     const query = { 
       status: 'active',
       role: { $in: ['donor', 'volunteer', 'admin'] }
     };
 
-    // Apply filters if provided - EXACT matching for better results
     if (bloodGroup && bloodGroup !== '') {
-      // Exact blood group match (case-insensitive)
       query.bloodGroup = { $regex: new RegExp(`^${bloodGroup}$`, 'i') };
     }
 
     if (district && district !== '') {
-      // Exact district match (case-insensitive)
       query.district = { $regex: new RegExp(`^${district}$`, 'i') };
     }
 
     if (upazila && upazila !== '') {
-      // Exact upazila match (case-insensitive)
       query.upazila = { $regex: new RegExp(`^${upazila}$`, 'i') };
     }
-
-    console.log('🔍 Final search query:', JSON.stringify(query, null, 2));
 
     const options = {
       page: parseInt(page),
@@ -206,23 +189,14 @@ const searchDonors = async (req, res) => {
       select: '-password',
       sort: { createdAt: -1 }
     };
-
-    // Execute search
+    
     const donors = await User.paginate(query, options);
 
-    console.log(`✅ Found ${donors.docs.length} donor(s)`);
-
-    // If no results found with exact matches
     if (donors.docs.length === 0) {
-      console.log('⚠️ No exact matches found');
-      
-      // Try different search strategies
       let alternativeResults = null;
       let message = 'No donors found matching all your criteria';
       
-      // Strategy 1: Try with only blood group and district (ignore upazila)
       if (bloodGroup && district) {
-        console.log('🔄 Trying search with only blood group and district...');
         const altQuery = {
           status: 'active',
           role: { $in: ['donor', 'volunteer', 'admin'] },
@@ -236,10 +210,8 @@ const searchDonors = async (req, res) => {
         }
       }
       
-      // Strategy 2: Try with only blood group
       if (!alternativeResults || alternativeResults.docs.length === 0) {
         if (bloodGroup) {
-          console.log('🔄 Trying search with only blood group...');
           const altQuery = {
             status: 'active',
             role: { $in: ['donor', 'volunteer', 'admin'] },
@@ -253,10 +225,8 @@ const searchDonors = async (req, res) => {
         }
       }
       
-      // Strategy 3: Try with only location
       if (!alternativeResults || alternativeResults.docs.length === 0) {
         if (district) {
-          console.log('🔄 Trying search with only location...');
           const altQuery = {
             status: 'active',
             role: { $in: ['donor', 'volunteer', 'admin'] },
@@ -273,9 +243,7 @@ const searchDonors = async (req, res) => {
         }
       }
       
-      // Strategy 4: Show all active donors as last resort
       if (!alternativeResults || alternativeResults.docs.length === 0) {
-        console.log('🔄 Showing all active donors...');
         const altQuery = {
           status: 'active',
           role: { $in: ['donor', 'volunteer', 'admin'] }
@@ -287,7 +255,6 @@ const searchDonors = async (req, res) => {
         }
       }
 
-      // Return alternative results if found
       if (alternativeResults && alternativeResults.docs.length > 0) {
         return res.status(200).json({
           success: true,
@@ -299,7 +266,6 @@ const searchDonors = async (req, res) => {
       }
     }
 
-    // Return exact match results
     return res.status(200).json({
       success: true,
       donors,
@@ -310,7 +276,7 @@ const searchDonors = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Search donors error:', error);
+    console.error('Search donors error:', error);
     res.status(500).json({
       success: false,
       message: 'Error searching donors',
@@ -319,7 +285,6 @@ const searchDonors = async (req, res) => {
   }
 };
 
-// Get Dashboard Statistics
 const getDashboardStats = async (req, res) => {
   try {
     const totalUsers = await User.countDocuments({ role: 'donor' });
@@ -332,7 +297,6 @@ const getDashboardStats = async (req, res) => {
     
     const totalFunding = totalFundingResult[0]?.total || 0;
 
-    // Get user's recent donation requests
     let recentDonations = [];
     if (req.user.role === 'donor') {
       recentDonations = await DonationRequest.find({ requester: req.user._id })
@@ -361,11 +325,9 @@ const getDashboardStats = async (req, res) => {
   }
 };
 
-// Get Bangladesh districts and upazilas data
 const getBangladeshData = async (req, res) => {
   try {
     const { getDistricts, getUpazilasByDistrict } = require('../utils/bangladeshData');
-    
     const districts = getDistricts();
     
     res.status(200).json({
@@ -382,12 +344,10 @@ const getBangladeshData = async (req, res) => {
   }
 };
 
-// Get upazilas by district
 const getUpazilas = async (req, res) => {
   try {
     const { district } = req.params;
     const { getUpazilasByDistrict } = require('../utils/bangladeshData');
-    
     const upazilas = getUpazilasByDistrict(district);
     
     res.status(200).json({

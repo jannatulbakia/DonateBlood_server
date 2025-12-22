@@ -63,7 +63,6 @@ const donationRequestSchema = new mongoose.Schema({
   }
 });
 
-// Add pagination plugin
 donationRequestSchema.plugin(paginate);
 
 module.exports = mongoose.model('DonationRequest', donationRequestSchema);
