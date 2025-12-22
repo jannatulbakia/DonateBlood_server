@@ -1,6 +1,19 @@
+// controllers/fundingController.js
+
 const Funding = require('../models/Funding');
 const User = require('../models/User');
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+
+// Helper function to safely get Stripe instance
+const getStripe = () => {
+  const key = process.env.STRIPE_SECRET_KEY;
+  
+  if (!key) {
+    throw new Error('STRIPE_SECRET_KEY is not configured. Please set it in environment variables.');
+  }
+  
+  // Lazy require to avoid loading stripe if key is missing
+  return require('stripe')(key);
+};
 
 // Create Payment Intent
 const createPaymentIntent = async (req, res) => {
@@ -14,9 +27,10 @@ const createPaymentIntent = async (req, res) => {
       });
     }
 
-    // Create payment intent
+    const stripe = getStripe(); // Initialize only when needed
+
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(amount * 100), // Convert to cents
+      amount: Math.round(amount * 100), // Stripe uses cents
       currency: 'usd',
       metadata: {
         userId: req.user._id.toString(),
@@ -30,16 +44,16 @@ const createPaymentIntent = async (req, res) => {
       paymentIntentId: paymentIntent.id
     });
   } catch (error) {
-    console.error('Create payment intent error:', error);
+    console.error('Create payment intent error:', error.message);
     res.status(500).json({
       success: false,
-      message: 'Error creating payment',
+      message: 'Error creating payment intent',
       error: error.message
     });
   }
 };
 
-// Confirm Payment
+// Confirm Payment and Save Funding
 const confirmPayment = async (req, res) => {
   try {
     const { paymentIntentId, amount } = req.body;
@@ -51,26 +65,27 @@ const confirmPayment = async (req, res) => {
       });
     }
 
-    // Retrieve payment intent from Stripe
+    const stripe = getStripe();
+
     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
 
     if (paymentIntent.status !== 'succeeded') {
       return res.status(400).json({
         success: false,
-        message: 'Payment not completed'
+        message: 'Payment has not been completed yet'
       });
     }
 
-    // Check if funding already exists
+    // Prevent duplicate processing
     const existingFunding = await Funding.findOne({ transactionId: paymentIntent.id });
     if (existingFunding) {
       return res.status(400).json({
         success: false,
-        message: 'Payment already processed'
+        message: 'This payment has already been processed'
       });
     }
 
-    // Create funding record
+    // Save funding record
     const funding = new Funding({
       user: req.user._id,
       amount: amount,
@@ -81,17 +96,17 @@ const confirmPayment = async (req, res) => {
 
     await funding.save();
 
-    // Populate user data
+    // Populate user details
     const populatedFunding = await Funding.findById(funding._id)
       .populate('user', 'name email avatar');
 
     res.status(200).json({
       success: true,
-      message: 'Payment completed successfully',
+      message: 'Payment completed and recorded successfully',
       funding: populatedFunding
     });
   } catch (error) {
-    console.error('Confirm payment error:', error);
+    console.error('Confirm payment error:', error.message);
     res.status(500).json({
       success: false,
       message: 'Error confirming payment',
@@ -100,7 +115,7 @@ const confirmPayment = async (req, res) => {
   }
 };
 
-// Get All Fundings
+// Get All Fundings (Admin/Volunteer view)
 const getAllFundings = async (req, res) => {
   try {
     const { page = 1, limit = 10, userId } = req.query;
@@ -112,15 +127,11 @@ const getAllFundings = async (req, res) => {
       page: parseInt(page),
       limit: parseInt(limit),
       sort: { createdAt: -1 },
-      populate: {
-        path: 'user',
-        select: 'name email avatar'
-      }
+      populate: { path: 'user', select: 'name email avatar' }
     };
 
     const fundings = await Funding.paginate(query, options);
 
-    // Calculate total
     const totalFundings = await Funding.aggregate([
       { $match: { status: 'completed' } },
       { $group: { _id: null, total: { $sum: '$amount' } } }
@@ -132,10 +143,10 @@ const getAllFundings = async (req, res) => {
       totalFunding: totalFundings[0]?.total || 0
     });
   } catch (error) {
-    console.error('Get all fundings error:', error);
+    console.error('Get all fundings error:', error.message);
     res.status(500).json({
       success: false,
-      message: 'Error getting fundings',
+      message: 'Error fetching fundings',
       error: error.message
     });
   }
@@ -146,35 +157,21 @@ const getFundingStats = async (req, res) => {
   try {
     const today = new Date();
     const startOfToday = new Date(today.setHours(0, 0, 0, 0));
-    const startOfWeek = new Date(today.setDate(today.getDate() - today.getDay()));
+    const startOfWeek = new Date(today);
+    startOfWeek.setDate(today.getDate() - today.getDay());
     const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
     const [daily, weekly, monthly, total] = await Promise.all([
       Funding.aggregate([
-        { 
-          $match: { 
-            status: 'completed',
-            createdAt: { $gte: startOfToday }
-          }
-        },
+        { $match: { status: 'completed', createdAt: { $gte: startOfToday } } },
         { $group: { _id: null, total: { $sum: '$amount' } } }
       ]),
       Funding.aggregate([
-        { 
-          $match: { 
-            status: 'completed',
-            createdAt: { $gte: startOfWeek }
-          }
-        },
+        { $match: { status: 'completed', createdAt: { $gte: startOfWeek } } },
         { $group: { _id: null, total: { $sum: '$amount' } } }
       ]),
       Funding.aggregate([
-        { 
-          $match: { 
-            status: 'completed',
-            createdAt: { $gte: startOfMonth }
-          }
-        },
+        { $match: { status: 'completed', createdAt: { $gte: startOfMonth } } },
         { $group: { _id: null, total: { $sum: '$amount' } } }
       ]),
       Funding.aggregate([
@@ -193,30 +190,31 @@ const getFundingStats = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Get funding stats error:', error);
+    console.error('Get funding stats error:', error.message);
     res.status(500).json({
       success: false,
-      message: 'Error getting funding statistics',
+      message: 'Error fetching funding statistics',
       error: error.message
     });
   }
 };
 
-// Get user's fundings
+// Get User's Own Fundings
 const getUserFundings = async (req, res) => {
   try {
     const { page = 1, limit = 10 } = req.query;
-    
+
     const options = {
       page: parseInt(page),
       limit: parseInt(limit),
-      sort: { createdAt: -1 },
-      match: { user: req.user._id, status: 'completed' }
+      sort: { createdAt: -1 }
     };
 
-    const fundings = await Funding.paginate({ user: req.user._id, status: 'completed' }, options);
+    const fundings = await Funding.paginate(
+      { user: req.user._id, status: 'completed' },
+      options
+    );
 
-    // Calculate user's total contribution
     const userTotal = await Funding.aggregate([
       { $match: { user: req.user._id, status: 'completed' } },
       { $group: { _id: null, total: { $sum: '$amount' } } }
@@ -228,10 +226,10 @@ const getUserFundings = async (req, res) => {
       userTotal: userTotal[0]?.total || 0
     });
   } catch (error) {
-    console.error('Get user fundings error:', error);
+    console.error('Get user fundings error:', error.message);
     res.status(500).json({
       success: false,
-      message: 'Error getting user fundings',
+      message: 'Error fetching user fundings',
       error: error.message
     });
   }

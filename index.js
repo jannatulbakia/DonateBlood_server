@@ -104,6 +104,12 @@ app.use((req, res) => {
   });
 });
 
-// ==================== EXPORT FOR VERCEL ====================
-// This is the most important part!
+if (require.main === module) {
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => {
+    console.log(`✅ Server running on port ${PORT}`);
+  });
+}
+
+// Export for Vercel serverless function
 module.exports = app;
