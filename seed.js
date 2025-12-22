@@ -3,7 +3,6 @@ const bcrypt = require('bcryptjs');
 const dotenv = require('dotenv');
 dotenv.config();
 
-// Define schemas directly in seed script
 const userSchema = new mongoose.Schema({
   name: String,
   email: String,
@@ -40,18 +39,15 @@ const DonationRequest = mongoose.model('DonationRequest', donationRequestSchema)
 
 const seedDatabase = async () => {
   try {
-    console.log('🌱 Seeding database...');
+    console.log('Seeding database...');
     
-    // Connect to MongoDB
     await mongoose.connect(process.env.MONGODB_URI);
-    console.log('✅ Connected to MongoDB');
+    console.log('Connected to MongoDB');
 
-    // Clear existing data
     await User.deleteMany({});
     await DonationRequest.deleteMany({});
-    console.log('🗑️  Cleared existing data');
+    console.log('Cleared existing data');
 
-    // Create admin user
     const adminPassword = await bcrypt.hash('admin123', 10);
     const admin = await User.create({
       name: 'Admin User',
@@ -64,8 +60,6 @@ const seedDatabase = async () => {
       role: 'admin',
       status: 'active'
     });
-
-    // Create volunteer user
     const volunteerPassword = await bcrypt.hash('volunteer123', 10);
     const volunteer = await User.create({
       name: 'Volunteer User',
@@ -78,8 +72,6 @@ const seedDatabase = async () => {
       role: 'volunteer',
       status: 'active'
     });
-
-    // Create donor users
     const donors = [];
     const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
     const districts = ['Dhaka', 'Chittagong', 'Khulna', 'Rajshahi', 'Sylhet'];
@@ -100,8 +92,6 @@ const seedDatabase = async () => {
       });
       donors.push(donor);
     }
-
-    // Create donation requests
     const donationRequests = [];
     const statuses = ['pending', 'inprogress', 'done', 'canceled'];
     const hospitals = [
@@ -124,7 +114,7 @@ const seedDatabase = async () => {
         hospitalName: hospitals[i % hospitals.length],
         fullAddress: `Address line ${i + 1}, ${upazilas[i % upazilas.length]}, ${districts[i % districts.length]}`,
         bloodGroup: bloodGroups[i % bloodGroups.length],
-        donationDate: new Date(Date.now() + i * 86400000), // Add i days
+        donationDate: new Date(Date.now() + i * 86400000),
         donationTime: `${10 + (i % 8)}:00 AM`,
         requestMessage: `Urgent need of blood for patient ${i + 1}. Please help if you can.`,
         status: statuses[i % statuses.length],
