@@ -1,14 +1,12 @@
 const DonationRequest = require('../models/DonationRequest');
 const User = require('../models/User');
 
-// Create Donation Request - FIXED VERSION
 const createDonationRequest = async (req, res) => {
   try {
     console.log('Creating donation request...');
     console.log('Request body:', req.body);
     console.log('User:', req.user._id);
 
-    // Check if user is active
     if (req.user.status !== 'active') {
       return res.status(403).json({
         success: false,
@@ -28,7 +26,6 @@ const createDonationRequest = async (req, res) => {
       requestMessage
     } = req.body;
 
-    // Validate required fields
     if (!recipientName || !recipientDistrict || !recipientUpazila || !hospitalName || 
         !fullAddress || !bloodGroup || !donationDate || !donationTime || !requestMessage) {
       return res.status(400).json({
@@ -37,7 +34,6 @@ const createDonationRequest = async (req, res) => {
       });
     }
 
-    // Create donation request
     const donationRequest = new DonationRequest({
       requester: req.user._id,
       recipientName,
@@ -55,7 +51,6 @@ const createDonationRequest = async (req, res) => {
     await donationRequest.save();
     console.log('Donation request saved:', donationRequest._id);
 
-    // Populate the request with user data
     const populatedRequest = await DonationRequest.findById(donationRequest._id)
       .populate('requester', 'name email avatar')
       .populate('donor', 'name email avatar');
@@ -68,8 +63,7 @@ const createDonationRequest = async (req, res) => {
   } catch (error) {
     console.error('Create donation request error:', error.message);
     console.error('Error stack:', error.stack);
-    
-    // Check for specific errors
+  
     if (error.name === 'ValidationError') {
       return res.status(400).json({
         success: false,
@@ -85,8 +79,6 @@ const createDonationRequest = async (req, res) => {
     });
   }
 };
-
-// Get All Donation Requests
 const getAllDonationRequests = async (req, res) => {
   try {
     const { 
@@ -99,12 +91,11 @@ const getAllDonationRequests = async (req, res) => {
     
     const query = {};
 
-    // Apply filters
     if (status) query.status = status;
     if (requesterId) query.requester = requesterId;
     if (donorId) query.donor = donorId;
 
-    // For regular donors, only show their own requests
+
     if (req.user.role === 'donor') {
       query.requester = req.user._id;
     }
@@ -135,7 +126,6 @@ const getAllDonationRequests = async (req, res) => {
   }
 };
 
-// Get Public Donation Requests
 const getPublicDonationRequests = async (req, res) => {
   try {
     const { page = 1, limit = 10, bloodGroup, district } = req.query;
@@ -168,8 +158,6 @@ const getPublicDonationRequests = async (req, res) => {
     });
   }
 };
-
-// Get Single Donation Request by ID
 const getDonationRequestById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -199,13 +187,11 @@ const getDonationRequestById = async (req, res) => {
   }
 };
 
-// Update Donation Request
 const updateDonationRequest = async (req, res) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
 
-    // Check permissions
     const donationRequest = await DonationRequest.findById(id);
     
     if (!donationRequest) {
@@ -215,15 +201,12 @@ const updateDonationRequest = async (req, res) => {
       });
     }
 
-    // Permission checks
     if (req.user.role === 'donor' && donationRequest.requester.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
         message: 'You can only update your own donation requests'
       });
     }
-
-    // Volunteers can only update status
     if (req.user.role === 'volunteer') {
       if (!updateData.status) {
         return res.status(403).json({
@@ -231,12 +214,10 @@ const updateDonationRequest = async (req, res) => {
           message: 'Volunteers can only update donation status'
         });
       }
-      // Only allow status field for volunteers
       const filteredData = { status: updateData.status };
       return updateDonation(id, filteredData, res);
     }
 
-    // Admins and request owners can update all fields
     await updateDonation(id, updateData, res);
   } catch (error) {
     console.error('Update donation request error:', error);
@@ -247,11 +228,8 @@ const updateDonationRequest = async (req, res) => {
     });
   }
 };
-
-// Helper function to update donation request
 const updateDonation = async (id, updateData, res) => {
   try {
-    // If donationDate is provided, convert to Date object
     if (updateData.donationDate) {
       updateData.donationDate = new Date(updateData.donationDate);
     }
@@ -273,8 +251,6 @@ const updateDonation = async (id, updateData, res) => {
     throw error;
   }
 };
-
-// Delete Donation Request
 const deleteDonationRequest = async (req, res) => {
   try {
     const { id } = req.params;
@@ -288,7 +264,6 @@ const deleteDonationRequest = async (req, res) => {
       });
     }
 
-    // Only requester or admin can delete
     if (req.user.role !== 'admin' && donationRequest.requester.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
@@ -312,7 +287,7 @@ const deleteDonationRequest = async (req, res) => {
   }
 };
 
-// Donate to Request (Change status to inprogress)
+
 const donateToRequest = async (req, res) => {
   try {
     const { id } = req.params;
@@ -333,7 +308,6 @@ const donateToRequest = async (req, res) => {
       });
     }
 
-    // Cannot donate to your own request
     if (donationRequest.requester.toString() === req.user._id.toString()) {
       return res.status(400).json({
         success: false,
@@ -341,7 +315,6 @@ const donateToRequest = async (req, res) => {
       });
     }
 
-    // Update donation request
     donationRequest.donor = req.user._id;
     donationRequest.status = 'inprogress';
 

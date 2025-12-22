@@ -29,6 +29,24 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
 
+// Root endpoint - ADDED THIS
+app.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Welcome to the Donation Platform API',
+    version: '1.0.0',
+    endpoints: {
+      auth: '/api/auth',
+      users: '/api/users',
+      donationRequests: '/api/donation-requests',
+      fundings: '/api/fundings',
+      health: '/health',
+      test: '/api/test'
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({
@@ -123,6 +141,7 @@ const startServer = async () => {
       console.log(`🔗 Health check: http://localhost:${PORT}/health`);
       console.log(`🔧 Test endpoint: http://localhost:${PORT}/api/test`);
       console.log(`⚡ Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`🏠 Root endpoint: http://localhost:${PORT}/`);
     });
   } catch (error) {
     console.error('Failed to start server:', error);
