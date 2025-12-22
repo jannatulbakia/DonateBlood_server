@@ -1,10 +1,9 @@
 // index.js - Vercel Serverless Compatible Version
-
 const express = require('express');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 
-// Load environment variables (Vercel also loads them automatically)
+// Load environment variables
 dotenv.config();
 
 // Import your route files
@@ -17,7 +16,6 @@ const fundingRoutes = require('./routes/fundings');
 const app = express();
 
 // ==================== DATABASE CONNECTION ====================
-// Connect once when the module loads (connections are reused across invocations)
 const connectDB = async () => {
   if (mongoose.connection.readyState === 1) {
     console.log('✅ MongoDB already connected');
@@ -34,11 +32,9 @@ const connectDB = async () => {
     console.log('✅ MongoDB connected successfully');
   } catch (error) {
     console.error('❌ MongoDB connection error:', error.message);
-    // Don't throw - let individual routes handle DB errors if needed
   }
 };
 
-// Call it immediately (safe in serverless)
 connectDB();
 
 // ==================== CORS ====================
@@ -56,11 +52,14 @@ app.use((req, res, next) => {
 // ==================== MIDDLEWARE ====================
 app.use(express.json());
 
-// ==================== ROUTES ====================
+// Debug middleware
+app.use((req, res, next) => {
+  console.log('📝 Request:', req.method, req.url);
+  next();
+});
 
-// Root route - this will now work on Vercel!
+// ==================== ROUTES ====================
 app.get('/', (req, res) => {
-  console.log('✅ Root route accessed');
   res.json({
     success: true,
     message: 'API is running successfully!',
@@ -69,9 +68,7 @@ app.get('/', (req, res) => {
   });
 });
 
-// Health check
 app.get('/health', (req, res) => {
-  console.log('✅ Health check accessed');
   res.json({
     success: true,
     message: 'Server is healthy',
@@ -80,9 +77,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Test route
 app.get('/api/test', (req, res) => {
-  console.log('✅ Test endpoint accessed');
   res.json({
     success: true,
     message: 'Test endpoint works perfectly'
@@ -104,12 +99,12 @@ app.use((req, res) => {
   });
 });
 
+// ==================== EXPORT ====================
 if (require.main === module) {
   const PORT = process.env.PORT || 5000;
   app.listen(PORT, () => {
-    console.log(`✅ Server running on port ${PORT}`);
+    console.log(`✅ Server running locally on port ${PORT}`);
   });
 }
 
-// Export for Vercel serverless function
 module.exports = app;
