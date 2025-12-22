@@ -20,21 +20,35 @@ const app = express();
 // Add pagination plugin to mongoose
 mongoose.plugin(paginate);
 
+// ==================== SIMPLE CORS CONFIGURATION ====================
+// Simple CORS - allow all origins for now (you can restrict later)
+app.use(cors({
+  origin: true, // Allows all origins
+  credentials: true
+}));
+
+// Handle preflight requests
+app.options('/', (req, res) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '/');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.status(200).send();
+});
+// ==================== END CORS CONFIGURATION ====================
+
 // Debug middleware - logs all requests
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.originalUrl}`);
   next();
 });
 
-// Middleware
-app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
-  credentials: true
-}));
+// Other middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
 
+// ==================== ROUTES ====================
 // Root endpoint
 app.get('/', (req, res) => {
   console.log('Root route accessed');
@@ -60,11 +74,13 @@ app.get('/health', (req, res) => {
   res.status(200).json({
     success: true,
     message: 'Server is running',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
+    environment: process.env.NODE_ENV || 'development'
   });
 });
 
-// Routes
+// API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/donation-requests', donationRequestRoutes);
@@ -80,20 +96,8 @@ app.get('/api/test', (req, res) => {
   });
 });
 
-// FIX: Correct catch-all route for undefined API endpoints
-// Option 1: Use a specific pattern
-app.use('/api/:undefinedPath', (req, res) => {
-  console.log('API catch-all triggered:', req.originalUrl);
-  res.status(404).json({
-    success: false,
-    message: `API endpoint not found: ${req.originalUrl}`
-  });
-});
-
-// OR Option 2: Remove the catch-all entirely (simpler)
-// Just let the global 404 handler catch everything
-
-// 404 handler - THIS MUST BE LAST (after all other routes)
+// ==================== ERROR HANDLERS ====================
+// 404 handler
 app.use((req, res) => {
   console.log('Global 404 triggered:', req.originalUrl);
   res.status(404).json({
@@ -111,10 +115,9 @@ app.use((req, res) => {
   });
 });
 
-// Error handling middleware - MUST BE AFTER 404
+// Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Error:', err.message);
-  console.error('Stack:', err.stack);
   
   const statusCode = err.statusCode || 500;
   const message = err.message || 'Internal Server Error';
@@ -126,13 +129,15 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Database connection - Simplified for Mongoose 7+
+// ==================== DATABASE CONNECTION ====================
 const connectDB = async () => {
   try {
     console.log('Connecting to MongoDB...');
     
-    // Remove the deprecated options for Mongoose 7+
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/donation-platform');
+    // For Vercel, use the MONGODB_URI environment variable
+    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/donation-platform';
+    
+    await mongoose.connect(mongoUri);
     
     console.log('✅ MongoDB connected successfully');
     console.log(`📊 Database: ${mongoose.connection.db?.databaseName}`);
@@ -148,20 +153,23 @@ const connectDB = async () => {
     
   } catch (error) {
     console.error('❌ MongoDB connection error:', error.message);
-    console.log('💡 Tips:');
-    console.log('1. Check if your MongoDB Atlas cluster is running');
-    console.log('2. Verify your username and password');
-    console.log('3. Make sure your IP is whitelisted in MongoDB Atlas');
-    console.log('4. Check network connectivity');
+    console.log('💡 Tips for Vercel:');
+    console.log('1. Check if MONGODB_URI is set in Vercel Environment Variables');
+    console.log('2. Verify your MongoDB Atlas cluster is running');
+    console.log('3. Make sure "0.0.0.0/0" is whitelisted in MongoDB Atlas Network Access');
+    console.log('4. Check database user credentials');
     
-    // Don't exit in development, let the server run
+    // In production, try to reconnect but don't crash
     if (process.env.NODE_ENV === 'production') {
+      console.log('Will attempt to reconnect in 5 seconds...');
+      setTimeout(connectDB, 5000);
+    } else {
       process.exit(1);
     }
   }
 };
 
-// Start server
+// ==================== SERVER START ====================
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
@@ -177,23 +185,23 @@ const startServer = async () => {
       console.log(`🔧 Test endpoint: http://localhost:${PORT}/api/test`);
       console.log(`🏠 Root endpoint: http://localhost:${PORT}/`);
       console.log(`⚡ Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`📝 Frontend URL: ${process.env.FRONTEND_URL || 'Not set'}`);
+      console.log(`🔐 CORS: Enabled for all origins`);
     });
   } catch (error) {
     console.error('Failed to start server:', error);
   }
 };
 
-// Graceful shutdown
+// ==================== GRACEFUL SHUTDOWN ====================
 process.on('SIGINT', async () => {
   await mongoose.connection.close();
   console.log('MongoDB connection closed');
   process.exit(0);
 });
 
-// Handle unhandled rejections
 process.on('unhandledRejection', (err) => {
   console.error('Unhandled Promise Rejection:', err);
 });
 
+// Start server
 startServer();
