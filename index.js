@@ -1,6 +1,5 @@
 const express = require('express');
 const mongoose = require('mongoose');
-const cors = require('cors');
 const dotenv = require('dotenv');
 const morgan = require('morgan');
 const paginate = require('mongoose-paginate-v2');
@@ -20,20 +19,33 @@ const app = express();
 // Add pagination plugin to mongoose
 mongoose.plugin(paginate);
 
-// ==================== SIMPLE CORS CONFIGURATION ====================
-// Simple CORS - allow all origins for now (you can restrict later)
-app.use(cors({
-  origin: true, // Allows all origins
-  credentials: true
-}));
+// ==================== MANUAL CORS HANDLING ====================
+// Instead of using cors() middleware, handle it manually
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'https://your-frontend.vercel.app'
+];
 
-// Handle preflight requests
-app.options('/', (req, res) => {
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '/');
+// Custom CORS middleware
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  
+  // Check if origin is allowed
+  if (allowedOrigins.includes(origin) || !origin || process.env.NODE_ENV === 'development') {
+    res.header('Access-Control-Allow-Origin', origin || '*');
+  }
+  
+  res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.status(200).send();
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  next();
 });
 // ==================== END CORS CONFIGURATION ====================
 
@@ -134,7 +146,6 @@ const connectDB = async () => {
   try {
     console.log('Connecting to MongoDB...');
     
-    // For Vercel, use the MONGODB_URI environment variable
     const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/donation-platform';
     
     await mongoose.connect(mongoUri);
@@ -142,7 +153,6 @@ const connectDB = async () => {
     console.log('✅ MongoDB connected successfully');
     console.log(`📊 Database: ${mongoose.connection.db?.databaseName}`);
     
-    // Set up connection event listeners
     mongoose.connection.on('error', (err) => {
       console.error('MongoDB connection error:', err);
     });
@@ -153,13 +163,11 @@ const connectDB = async () => {
     
   } catch (error) {
     console.error('❌ MongoDB connection error:', error.message);
-    console.log('💡 Tips for Vercel:');
-    console.log('1. Check if MONGODB_URI is set in Vercel Environment Variables');
+    console.log('💡 Tips:');
+    console.log('1. Check if MONGODB_URI is set');
     console.log('2. Verify your MongoDB Atlas cluster is running');
-    console.log('3. Make sure "0.0.0.0/0" is whitelisted in MongoDB Atlas Network Access');
-    console.log('4. Check database user credentials');
+    console.log('3. Make sure your IP is whitelisted in MongoDB Atlas');
     
-    // In production, try to reconnect but don't crash
     if (process.env.NODE_ENV === 'production') {
       console.log('Will attempt to reconnect in 5 seconds...');
       setTimeout(connectDB, 5000);
@@ -185,7 +193,7 @@ const startServer = async () => {
       console.log(`🔧 Test endpoint: http://localhost:${PORT}/api/test`);
       console.log(`🏠 Root endpoint: http://localhost:${PORT}/`);
       console.log(`⚡ Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`🔐 CORS: Enabled for all origins`);
+      console.log(`🔐 CORS Allowed Origins:`, allowedOrigins);
     });
   } catch (error) {
     console.error('Failed to start server:', error);
