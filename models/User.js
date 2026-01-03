@@ -58,4 +58,4 @@ const userSchema = new mongoose.Schema({
 
 userSchema.plugin(paginate);
 
-module.exports = mongoose.model('User', userSchema);
+module.exports = mongoose.model('User', userSchema); //managed all stuff related to user
